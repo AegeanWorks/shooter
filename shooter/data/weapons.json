@@ -1,0 +1,70 @@
+{
+  "schema": 1,
+  "weapons": [
+    {
+      "id": "pulse",
+      "role": "starter rifle, forgiving",
+      "dmg": 12,
+      "pellets": 1,
+      "rof": 8.0,
+      "mag": 30,
+      "reserve": 120,
+      "spread_hip_deg": 1.2,
+      "range": 60.0,
+      "reload_s": 1.1,
+      "falloff_start": 25.0,
+      "kick_deg": 0.6,
+      "auto": true,
+      "pierce": 1
+    },
+    {
+      "id": "scatter",
+      "role": "close brawler",
+      "dmg": 9,
+      "pellets": 8,
+      "rof": 1.4,
+      "mag": 6,
+      "reserve": 24,
+      "spread_hip_deg": 4.5,
+      "range": 18.0,
+      "reload_s": 1.8,
+      "falloff_start": 6.0,
+      "kick_deg": 2.0,
+      "auto": false,
+      "pierce": 1
+    },
+    {
+      "id": "lance",
+      "role": "precision rail, pierces 2",
+      "dmg": 55,
+      "pellets": 1,
+      "rof": 1.1,
+      "mag": 5,
+      "reserve": 15,
+      "spread_hip_deg": 0.1,
+      "range": 120.0,
+      "reload_s": 1.6,
+      "falloff_start": 60.0,
+      "kick_deg": 1.2,
+      "auto": false,
+      "pierce": 2
+    },
+    {
+      "id": "surge",
+      "role": "pickup panic AoE",
+      "dmg": 25,
+      "pellets": 1,
+      "rof": 6.0,
+      "mag": 40,
+      "reserve": 0,
+      "spread_hip_deg": 2.5,
+      "range": 25.0,
+      "reload_s": 0.0,
+      "falloff_start": 12.0,
+      "kick_deg": 1.0,
+      "auto": true,
+      "pierce": 1,
+      "duration_s": 10.0
+    }
+  ]
+}

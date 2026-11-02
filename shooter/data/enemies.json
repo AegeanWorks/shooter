@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "enemies": [
+    {
+      "id": "mite",
+      "hp": 30,
+      "speed": 4.2,
+      "dmg": 8,
+      "range": 1.5,
+      "score": 100,
+      "radius": 0.5,
+      "height": 1.0,
+      "behavior": "seek_orbit_lunge"
+    },
+    {
+      "id": "brute",
+      "hp": 120,
+      "speed": 2.4,
+      "dmg": 20,
+      "range": 2.5,
+      "score": 300,
+      "radius": 0.7,
+      "height": 1.4,
+      "behavior": "advance_pause_slam"
+    },
+    {
+      "id": "wisp",
+      "hp": 20,
+      "speed": 5.5,
+      "dmg": 6,
+      "range": 12.0,
+      "score": 150,
+      "radius": 0.4,
+      "height": 0.8,
+      "behavior": "flank_dart_bolt"
+    }
+  ]
+}

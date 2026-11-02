@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "tracer_life_s": 0.08,
+  "flash_life_s": 0.06,
+  "impact_burst": 12,
+  "kill_burst": 20,
+  "max_particles": 256,
+  "kick_deg": 0.6,
+  "kick_decay": 8.0,
+  "hitstop_ticks": 2,
+  "crosshair_hit_s": 0.12
+}
