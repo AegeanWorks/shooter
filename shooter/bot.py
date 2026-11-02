@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from keystone.input import ActionState
 
 
@@ -28,10 +30,69 @@ def fire_clicks(n: int) -> list[ActionState]:
 
 
 def assault(n_move: int = 60, n_fire: int = 240) -> list[ActionState]:
-    """Walk forward then hold fire: minute-one fun proof (shots/hits/kills)."""
+    """Walk forward then hold fire: movement + determinism proof (see ADR-006)."""
     script = move_forward(n_move)
     script.extend(fire_hold(n_fire))
     return script
+
+
+def _ammo_total(sim, wid: str) -> int:
+    return int(sim.ammo.get(wid, 0)) + int(sim.reserve.get(wid, 0))
+
+
+def _face(sim, tx: float, tz: float, turn: float = 0.12) -> tuple[float, float]:
+    dx, dz = tx - sim.player_pos.x, tz - sim.player_pos.z
+    dyaw = (math.atan2(dx, -dz) - sim.yaw + math.pi) % math.tau - math.pi
+    return max(-turn, min(turn, dyaw)), 0.0
+
+
+def kite_step(sim) -> ActionState:
+    """One feedback tick: face the nearest live enemy, hold 6-12 m, fire when aimed.
+
+    Pure function of sim state (no RNG, no wall-clock), so recorded logs replay
+    deterministically. Uses the shipped ammo economy: pulse first, detours to the
+    surge pickup when pulse runs dry, otherwise falls back to scatter/lance.
+    """
+    if not sim.alive:
+        return ActionState()
+    if _ammo_total(sim, sim.weapon) <= 0:
+        if sim.pickup_active:
+            look_yaw, look_pitch = _face(sim, 0.0, -6.0)
+            return ActionState(forward=1.0, look_yaw=look_yaw, look_pitch=look_pitch)
+        for wid, slot in (("scatter", "slot2"), ("lance", "slot3")):
+            if _ammo_total(sim, wid) > 0:
+                return ActionState(pressed=frozenset({slot}))
+        return ActionState()
+    living = [e for e in sim.enemies if e.alive]
+    if not living:
+        return ActionState()
+    px, pz = sim.player_pos.x, sim.player_pos.z
+    target = min(living, key=lambda e: (e.pos.x - px) ** 2 + (e.pos.z - pz) ** 2)
+    dx, dz = target.pos.x - px, target.pos.z - pz
+    dist = math.hypot(dx, dz)
+    desired_yaw = math.atan2(dx, -dz)
+    dyaw = (desired_yaw - sim.yaw + math.pi) % math.tau - math.pi
+    eye_y = sim.player_pos.y + 0.72
+    desired_pitch = math.atan2((target.pos.y + 0.3) - eye_y, max(dist, 1e-6))
+    dpitch = desired_pitch - sim.pitch
+    turn = 0.12
+    look_yaw = max(-turn, min(turn, dyaw))
+    look_pitch = max(-turn, min(turn, dpitch))
+    aimed = abs(dyaw) < 0.15 and abs(dpitch) < 0.15
+    w = sim.weapons.get(sim.weapon, {})
+    in_range = dist <= float(w.get("range", 60.0))
+    if dist < 6.0:
+        forward = -1.0
+    elif dist > 12.0:
+        forward = 1.0
+    else:
+        forward = 0.0
+    orbit = 1.0 if (sim.tick // 90) % 2 == 0 else -1.0
+    held = frozenset({"fire"}) if (aimed and in_range) else frozenset()
+    return ActionState(
+        forward=forward, right=0.7 * orbit,
+        look_yaw=look_yaw, look_pitch=look_pitch, held=held,
+    )
 
 
 def strafe_fire(n: int = 300) -> list[ActionState]:

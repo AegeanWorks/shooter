@@ -101,6 +101,29 @@ def test_kill_scores():
     assert final["score"] >= 100, final
 
 
+def _run_kite(g: ShooterGame, frames: int) -> dict:
+    from keystone.replay import stable_hash
+
+    from shooter.bot import kite_step
+
+    for _ in range(frames):
+        g.update(1.0 / 60.0, kite_step(g.sim))
+    final = g.snapshot()
+    return {"final": final, "hash": stable_hash(final)}
+
+
+def test_kite_bot_clears_wave_one():
+    g = ShooterGame()
+    g.build_scene()
+    result = _run_kite(g, 600)
+    final = result["final"]
+    assert final["wave"] >= 2, final
+    assert final["kills"] >= 5, final
+    assert final["player"]["alive"] is True, final
+    again = _run_kite(ShooterGame(), 600)
+    assert again["hash"] == result["hash"]
+
+
 def test_player_can_die():
     from keystone.math3d import Vec3
 
