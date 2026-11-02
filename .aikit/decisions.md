@@ -34,3 +34,10 @@ Status: accepted
 Context: `test_boundary.py` forbids genre code in `keystone/`.
 Decision: Game lives `projects/shooter/`, imports `keystone` only; zero `projects/keystone/**` edits.
 Consequences: Engine gates stay green; balance via `shooter/data/*.json` only.
+
+## ADR-006: Bot evidence roles and proxy labeling
+Date: 2026-11-03
+Status: accepted
+Context: Stage 4 check showed `bot_log.json` (assault 60+540) scores 39 shots / 0 hits and dies on the default map, so it cannot carry the minute-one fun claim alone.
+Decision: `bot_log.json` is the movement + determinism proof (replay hash `8319b113…`); `bot_strafe.json` (strafe_fire 300: 30 shots / 2 hits / hp 84 / replay hash `10f56c10…`) is the minute-one fun proof; `shot_stage4_min30proxy.*` stays labeled proxy until a true sustained run with frame-time graphs lands.
+Consequences: No new capture conventions; claims cite the log that proves them.
