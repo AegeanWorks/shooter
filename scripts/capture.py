@@ -54,44 +54,65 @@ def _engine_with(game: ShooterGame, w: int = 960, h: int = 540):
     return Engine(game, w, h, visible=False, msaa=0, ui=True)
 
 
-def route_spawn(prefix: str) -> None:
+def _tune(engine, shadows: bool = True, srgb: bool = True, post: bool = True, bloom: bool = True) -> None:
+    """Apply renderer toggles to an already-built Engine scene (before stepping)."""
+    from keystone.scene import BloomSettings, ColorSettings, PostSettings, ShadowSettings
+
+    engine.scene.shadow = ShadowSettings(enabled=bool(shadows))
+    engine.scene.color = ColorSettings(enabled=bool(srgb))
+    engine.scene.post = PostSettings(enabled=bool(post))
+    engine.scene.bloom = BloomSettings(enabled=bool(bloom))
+
+
+def _profiler(engine) -> dict:
+    stats = dict(getattr(engine.renderer, "last_stats", {}))
+    print(f"profiler draws={stats.get('draw_calls')} tris={stats.get('triangles')} inst={stats.get('instanced_calls')} shadow_calls={stats.get('shadow_calls')} shadow_map={stats.get('shadow_map_size')} flags=S{stats.get('shadows_enabled')}C{stats.get('srgb_enabled')}P{stats.get('post_enabled')}B{stats.get('bloom_enabled')}")
+    return stats
+
+
+def route_spawn(prefix: str, shadows: bool = True, srgb: bool = True, post: bool = True, bloom: bool = True) -> None:
     from keystone.app import Engine
 
     game = ShooterGame()
     engine = Engine(game, 960, 540, visible=False, msaa=0, ui=True)
+    _tune(engine, shadows, srgb, post, bloom)
     try:
         engine.game.update(FIXED_STEP, ActionState())
         engine.capture(f"{prefix}_spawn.png", f"{prefix}_spawn.json")
+        _profiler(engine)
         print(f"wrote {prefix}_spawn.png + {prefix}_spawn.json")
     finally:
         engine.close()
 
 
-def route_combat(prefix: str, frames: int = 277) -> None:
+def route_combat(prefix: str, frames: int = 277, shadows: bool = True, srgb: bool = True, post: bool = True, bloom: bool = True) -> None:
     # 277 = 2 enemies alive + a shot fired this frame (kite scan);
     # frame 300 lands between waves with nothing alive.
     from keystone.app import Engine
 
     game = ShooterGame()
     engine = Engine(game, 960, 540, visible=False, msaa=0, ui=True)
+    _tune(engine, shadows, srgb, post, bloom)
     try:
         for _ in range(frames):
             engine.game.update(FIXED_STEP, kite_step(engine.game.sim))
         g = engine.game
         print(f"combat shots={g.sim.shots} hits={g.sim.hits} kills={g.sim.kills} wave={g.sim.wave} hp={g.sim.hp}")
         engine.capture(f"{prefix}_combat.png", f"{prefix}_combat.json")
+        _profiler(engine)
         print(f"wrote {prefix}_combat.png + {prefix}_combat.json")
     finally:
         engine.close()
 
 
-def route_fireburst(prefix: str) -> None:
+def route_fireburst(prefix: str, shadows: bool = True, srgb: bool = True, post: bool = True, bloom: bool = True) -> None:
     """Aimed burst at a static target: guarantees visible tracer + flash + hitmark."""
     from keystone.app import Engine
     from keystone.input import ActionState as AS
 
     game = ShooterGame()
     engine = Engine(game, 960, 540, visible=False, msaa=0, ui=True)
+    _tune(engine, shadows, srgb, post, bloom)
     try:
         g = engine.game
         g.sim.spawn_queue = []
@@ -107,16 +128,18 @@ def route_fireburst(prefix: str) -> None:
         # keep stepping idle (no fire) at most 1 frame so flash/tracer stay alive
         print(f"burst shots={g.sim.shots} hits={g.sim.hits} flash={g.sim.flash_t:.3f} tracers={len(g.sim.tracers)} fired={fired}")
         engine.capture(f"{prefix}_burst.png", f"{prefix}_burst.json")
+        _profiler(engine)
         print(f"wrote {prefix}_burst.png + {prefix}_burst.json")
     finally:
         engine.close()
 
 
-def route_pickup(prefix: str) -> None:
+def route_pickup(prefix: str, shadows: bool = True, srgb: bool = True, post: bool = True, bloom: bool = True) -> None:
     from keystone.app import Engine
 
     game = ShooterGame()
     engine = Engine(game, 960, 540, visible=False, msaa=0, ui=True)
+    _tune(engine, shadows, srgb, post, bloom)
     try:
         g = engine.game
         for i in range(1200):
@@ -141,16 +164,18 @@ def route_pickup(prefix: str) -> None:
         g.update(FIXED_STEP, ActionState())
         print(f"pickup wave={g.sim.wave} active={g.sim.pickup_active} frame={g.sim.tick}")
         engine.capture(f"{prefix}_pickup.png", f"{prefix}_pickup.json")
+        _profiler(engine)
         print(f"wrote {prefix}_pickup.png + {prefix}_pickup.json")
     finally:
         engine.close()
 
 
-def route_death(prefix: str) -> None:
+def route_death(prefix: str, shadows: bool = True, srgb: bool = True, post: bool = True, bloom: bool = True) -> None:
     from keystone.app import Engine
 
     game = ShooterGame()
     engine = Engine(game, 960, 540, visible=False, msaa=0, ui=True)
+    _tune(engine, shadows, srgb, post, bloom)
     try:
         g = engine.game
         g.sim.spawn_queue = []
@@ -160,23 +185,35 @@ def route_death(prefix: str) -> None:
             g.update(FIXED_STEP, ActionState())
         print(f"death hp={g.sim.hp} alive={g.sim.alive}")
         engine.capture(f"{prefix}_death.png", f"{prefix}_death.json")
+        _profiler(engine)
         print(f"wrote {prefix}_death.png + {prefix}_death.json")
     finally:
         engine.close()
 
 
-def main(which: str = "all", prefix: str = "shot_fix") -> None:
+def main(which: str = "all", prefix: str = "shot_fix", shadows: bool = True, srgb: bool = True, post: bool = True, bloom: bool = True) -> None:
     if which in ("all", "spawn"):
-        route_spawn(prefix)
+        route_spawn(prefix, shadows, srgb, post, bloom)
     if which in ("all", "combat"):
-        route_combat(prefix)
+        route_combat(prefix, 277, shadows, srgb, post, bloom)
     if which in ("all", "burst"):
-        route_fireburst(prefix)
+        route_fireburst(prefix, shadows, srgb, post, bloom)
     if which in ("all", "pickup"):
-        route_pickup(prefix)
+        route_pickup(prefix, shadows, srgb, post, bloom)
     if which in ("all", "death"):
-        route_death(prefix)
+        route_death(prefix, shadows, srgb, post, bloom)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "all", sys.argv[2] if len(sys.argv) > 2 else "shot_fix")
+    _args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    _flags = {a for a in sys.argv[1:] if a.startswith("--")}
+    _which = _args[0] if len(_args) > 0 else "all"
+    _prefix = _args[1] if len(_args) > 1 else "shot_fix"
+    main(
+        _which,
+        _prefix,
+        shadows="--no-shadows" not in _flags,
+        srgb="--no-srgb" not in _flags,
+        post="--no-post" not in _flags,
+        bloom="--no-bloom" not in _flags,
+    )

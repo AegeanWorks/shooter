@@ -192,3 +192,56 @@ def test_frame_budget():
 
 def test_fixed_step():
     assert abs(FIXED_STEP - 1.0 / 60.0) < 1e-9
+
+
+def test_outcome_signal():
+    g = ShooterGame()
+    g.build_scene()
+    assert g.snapshot()["outcome"] == "ongoing"
+    g.sim.hp = 0
+    g.sim.alive = False
+    assert g.snapshot()["outcome"] == "lose"
+    g2 = ShooterGame()
+    g2.build_scene()
+    from shooter.bot import kite_step
+
+    for _ in range(600):
+        g2.update(1.0 / 60.0, kite_step(g2.sim))
+    final = g2.snapshot()
+    assert final["wave"] >= 2, final
+    assert final["outcome"] == "win", final
+
+
+def _kite_reference_actions():
+    import json
+
+    from keystone.input import ActionState as _AS
+
+    path = Path(__file__).parent.parent / "bot_kite600.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    frames = payload.get("frames", payload) if isinstance(payload, dict) else payload
+    return [_AS.from_dict(item) for item in frames]
+
+
+def test_playtest_random_deterministic():
+    from keystone.playtest import RandomPolicy, diff_transcripts, run_bot
+
+    first = run_bot(ShooterGame, RandomPolicy(), frames=60, seed=1)
+    second = run_bot(ShooterGame, RandomPolicy(), frames=60, seed=1)
+    assert first["hash"] == second["hash"]
+    diff = diff_transcripts(first, second)
+    assert diff["same_hash"] is True
+    assert diff["first_divergent_frame"] is None
+
+
+def test_playtest_fair_with_kite_reference():
+    from keystone.playtest import ScriptedPolicy, run_bot, validate_fairness
+
+    reference = _kite_reference_actions()
+    verdict = validate_fairness(ShooterGame, reference_actions=reference, frames=600, seeds=(1,))
+    assert verdict["verdict"] == "fair", verdict
+    assert any(str(r).startswith("witnessed_win") for r in verdict["reasons"]), verdict
+    transcript = run_bot(ShooterGame, ScriptedPolicy(reference), frames=600, seed=1)
+    assert transcript["outcome"] == "win", transcript["outcome"]
+    again = run_bot(ShooterGame, ScriptedPolicy(reference), frames=600, seed=1)
+    assert again["hash"] == transcript["hash"]

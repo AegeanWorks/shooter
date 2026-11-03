@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "renderer": {
+    "shadows": true,
+    "srgb": true,
+    "post": true,
+    "bloom": true
+  },
+  "notes": "Deliberate adoption of the Keystone deterministic renderer stack. All four features default-on in the engine; the game sets each flag explicitly from this file (never inherited by accident). Re-grade here as DATA if before/after screenshots demand it; engine constants stay in keystone/gpu/*."
+}

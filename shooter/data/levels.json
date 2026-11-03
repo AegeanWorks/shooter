@@ -23,5 +23,6 @@
   ],
   "spawn_interval_s": 0.8,
   "max_alive": 24,
-  "pickup_wave": 2
+  "pickup_wave": 2,
+  "win_wave": 2
 }

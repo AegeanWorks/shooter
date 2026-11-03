@@ -547,7 +547,18 @@ class Sim:
         def r(v: float) -> float:
             return round(float(v), 4)
 
+        try:
+            win_wave = int(self.levels.get("win_wave", 2))
+        except (TypeError, ValueError):
+            win_wave = 2
+        if not bool(self.alive):
+            outcome = "lose"
+        elif int(self.wave) >= win_wave:
+            outcome = "win"
+        else:
+            outcome = "ongoing"
         return {
+            "outcome": outcome,
             "time": r(self.time),
             "tick": int(self.tick),
             "seed": int(self.seed),

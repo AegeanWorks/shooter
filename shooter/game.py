@@ -14,7 +14,7 @@ from keystone.audio import Mixer, noise, sine, square
 from keystone.geometry import Material
 from keystone.math3d import Quat, Vec3
 from keystone.primitives import cone, cube, plane, sphere
-from keystone.scene import DirectionalLight, Node, PointLight, Scene, Transform
+from keystone.scene import BloomSettings, ColorSettings, DirectionalLight, Node, PointLight, PostSettings, Scene, ShadowSettings, Transform
 from keystone.texture import TextureData
 
 from .sim import Sim
@@ -43,6 +43,21 @@ class ShooterGame:
     def build_scene(self) -> Scene:
         self.sim.reset()
         self.scene = Scene()
+        # Deliberate renderer adoption (grade.json as DATA, never inherited
+        # by accident). Engine defaults are all-on; setting each flag here
+        # proves the game wants them on with before/after evidence.
+        try:
+            import json as _json
+            from pathlib import Path as _Path
+
+            _grade = _json.loads((_Path(__file__).parent / "data" / "grade.json").read_text(encoding="utf-8"))
+            _ren = dict(_grade.get("renderer", {}))
+        except (OSError, ValueError, TypeError, AttributeError):
+            _ren = {}
+        self.scene.shadow = ShadowSettings(enabled=bool(_ren.get("shadows", True)))
+        self.scene.color = ColorSettings(enabled=bool(_ren.get("srgb", True)))
+        self.scene.post = PostSettings(enabled=bool(_ren.get("post", True)))
+        self.scene.bloom = BloomSettings(enabled=bool(_ren.get("bloom", True)))
         self.assets = AssetRegistry()
         self.mixer = Mixer()
         self.particles = self.sim.particles
