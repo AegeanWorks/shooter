@@ -48,3 +48,10 @@ Status: accepted
 Context: The sustain slice needed a surviving bot and honest frame-time/budget numbers for 108,000 frames (30 sim-minutes).
 Decision: `shooter/bot.py:kite_step` (pure feedback policy: face nearest, hold 6-12 m, fire when aimed; uses the shipped ammo economy — pulse, surge pickup, scatter/lance fallback) drives `scripts/soak.py`, which records `bot_soak.json` plus derived `soak_report.json` (per-600-frame wall series, wave events, death frame, peak budgets). `plan_batches.draw_calls` is the naive per-node count (51 at synthetic 24-enemy + 16-tracer load); the gate-relevant numbers are `batched_calls`/`instanced_calls` (6 at that load, 5 at the natural 16-alive peak), per the renderer's auto-instancing.
 Consequences: Soak result — waves 1-4 cleared, wave 5 reached frame 2323, death frame 2988 (wave-5 swarm), 37 kills / 6550 score / 190 shots / 144 hits; mean sim-step 0.08-0.25 ms across 180 chunks (worst single step 24.3 ms, disclosed); replay hash `ba6419e0…` identical via driver and `--replay`.
+
+## ADR-008: Wave-5 wisp cut for the sustain loop
+Date: 2026-11-03
+Status: accepted
+Context: The frozen kite bot died at frame 2988 in a corner trap against 8 mites + 1 brute + 3 wisps; the 5.5-speed ranged wisp bleed was the dose-limiting pressure (screened 4→2→1 deaths at 2988→3354→3885 with early hp trajectory 100/100/88 intact each time).
+Decision: `shooter/data/levels.json` wave 5 goes wisp 4→1 (mites 10, brutes 4 unchanged); waves 1-4, all weapons/enemies/player tables, and all bot code frozen.
+Consequences: New best — `bot_soak2.json` / `soak_report2.json`: wave-5 entry still frame 2323 at hp 64, death frame 3884 in open combat (no corner trap), 38 kills / 6650 score / 190 shots / 145 hits; replay hash `ce8156ec…` identical via driver and `--replay`; suite still 11 passed; timing/budget unchanged (flat, green).
