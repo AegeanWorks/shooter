@@ -13,6 +13,7 @@
     ]
   },
   "player": {"spawn": [0.0, 0.9, 8.0], "hp": 100},
+  "pickup": {"x": 0.0, "y": 0.5, "z": -6.0},
   "waves": [
     {"mite": 4, "brute": 0, "wisp": 0},
     {"mite": 6, "brute": 1, "wisp": 0},

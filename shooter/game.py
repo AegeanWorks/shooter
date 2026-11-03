@@ -57,8 +57,9 @@ class ShooterGame:
         self.assets.register("mesh.pickup", cube(0.6))
         checker = TextureData.checker(64, (0.10, 0.12, 0.16), (0.18, 0.20, 0.25), name="floor-checker")
         self.assets.register("texture.floor", checker)
-        self.assets.register("material.floor", Material(color=Vec3(1, 1, 1), specular=0.08, shininess=8.0, texture=checker))
+        self.assets.register("material.floor", Material(color=Vec3(1, 1, 1), specular=0.08, shininess=8.0, texture=checker, checker_scale=0.5))
         self.assets.register("material.wall", Material(color=Vec3(0.42, 0.44, 0.50), specular=0.2, shininess=24.0))
+        self.assets.register("material.cover", Material(color=Vec3(0.58, 0.46, 0.30), specular=0.15, shininess=18.0))
         self.assets.register("material.mite", Material(color=Vec3(0.95, 0.45, 0.15), specular=0.4, shininess=48.0, emissive=Vec3(0.55, 0.18, 0.02)))
         self.assets.register("material.brute", Material(color=Vec3(0.60, 0.40, 0.90), specular=0.4, shininess=48.0, metallic=0.2, roughness=0.5))
         self.assets.register("material.wisp", Material(color=Vec3(0.30, 0.85, 1.00), specular=0.6, shininess=64.0, emissive=Vec3(0.10, 0.45, 0.55)))
@@ -84,16 +85,17 @@ class ShooterGame:
         wall_mesh = self.assets.require("mesh.wall").payload
         wall_mat = self.assets.require("material.wall").payload
 
-        def wall(node_id: str, x: float, y: float, z: float, sx: float, sy: float, sz: float) -> None:
-            self.scene.add(Node(node_id, id=node_id, transform=Transform(position=Vec3(x, y, z), scale=Vec3(sx, sy, sz)), mesh=wall_mesh, material=wall_mat))
+        def wall(node_id: str, x: float, y: float, z: float, sx: float, sy: float, sz: float, mat=None) -> None:
+            self.scene.add(Node(node_id, id=node_id, transform=Transform(position=Vec3(x, y, z), scale=Vec3(sx, sy, sz)), mesh=wall_mesh, material=mat if mat is not None else wall_mat))
 
         size = 20.0
         wall("wall-n", 0.0, 1.5, -20.0, 41.0, 3.0, 1.0)
         wall("wall-s", 0.0, 1.5, 20.0, 41.0, 3.0, 1.0)
         wall("wall-w", -20.0, 1.5, 0.0, 1.0, 3.0, 41.0)
         wall("wall-e", 20.0, 1.5, 0.0, 1.0, 3.0, 41.0)
+        cover_mat = self.assets.require("material.cover").payload
         for i, c in enumerate(self.sim.levels["arena"]["covers"]):
-            wall(f"cover-{i}", float(c["x"]), float(c["h"]) / 2.0, float(c["z"]), float(c["w"]), float(c["h"]), float(c["d"]))
+            wall(f"cover-{i}", float(c["x"]), float(c["h"]) / 2.0, float(c["z"]), float(c["w"]), float(c["h"]), float(c["d"]), mat=cover_mat)
 
         # enemy pool (shared payloads -> auto-instancing)
         self._enemy_nodes = []
@@ -118,8 +120,10 @@ class ShooterGame:
         self.scene.add(self._flash)
         pickup_mesh = self.assets.require("mesh.pickup").payload
         pickup_mat = self.assets.require("material.pickup").payload
+        self._pickup_spot = self.sim.levels.get("pickup", {"x": 0.0, "y": 0.5, "z": -6.0})
         self._pickup = Node("surge-pickup", id="surge-pickup", visible=False,
-                            transform=Transform(position=Vec3(0.0, 0.5, -6.0)),
+                            transform=Transform(position=Vec3(
+                                float(self._pickup_spot["x"]), float(self._pickup_spot["y"]), float(self._pickup_spot["z"]))),
                             mesh=pickup_mesh, material=pickup_mat)
         self.scene.add(self._pickup)
 
@@ -211,19 +215,25 @@ class ShooterGame:
                 x0, y0, z0, x1, y1, z1 = t["x0"], t["y0"], t["z0"], t["x1"], t["y1"], t["z1"]
                 dx, dy, dz = x1 - x0, y1 - y0, z1 - z0
                 length = max(0.3, math.sqrt(dx * dx + dy * dy + dz * dz))
-                yaw = math.atan2(dx, -dz) if (abs(dx) + abs(dz)) > 1e-6 else 0.0
+                # Cube length axis is +/-z: yaw maps +z onto the beam
+                # (atan2(dx,-dz) is the camera-forward convention and mirrors
+                # the beam front-to-back through the viewer). Pitch included
+                # so the beam visually connects muzzle to hit.
+                yaw = math.atan2(dx, dz) if (abs(dx) + abs(dz)) > 1e-6 else 0.0
+                pitch = -math.atan2(dy, math.hypot(dx, dz))
                 node.visible = True
                 node.transform = Transform(
                     position=Vec3((x0 + x1) / 2.0, (y0 + y1) / 2.0, (z0 + z1) / 2.0),
-                    rotation=Quat.from_axis_angle(Vec3(0.0, 1.0, 0.0), yaw),
-                    scale=Vec3(0.05, 0.05, length),
+                    rotation=Quat.from_axis_angle(Vec3(0.0, 1.0, 0.0), yaw)
+                    * Quat.from_axis_angle(Vec3(1.0, 0.0, 0.0), pitch),
+                    scale=Vec3(0.02, 0.02, length),
                 )
             else:
                 node.visible = False
         if self._flash is not None:
             if sim.flash_t > 0.0:
                 self._flash.visible = True
-                self._flash.transform = Transform(position=sim.flash_pos, scale=Vec3(0.22, 0.22, 0.22))
+                self._flash.transform = Transform(position=sim.flash_pos, scale=Vec3(0.10, 0.10, 0.10))
             else:
                 self._flash.visible = False
         if self._pickup is not None:
@@ -231,7 +241,9 @@ class ShooterGame:
             if sim.pickup_active:
                 spin = (sim.time * 1.5) % math.tau
                 self._pickup.transform = Transform(
-                    position=Vec3(0.0, 0.5 + 0.15 * math.sin(sim.time * 3.0), -6.0),
+                    position=Vec3(float(self._pickup_spot["x"]),
+                                  float(self._pickup_spot["y"]) + 0.15 * math.sin(sim.time * 3.0),
+                                  float(self._pickup_spot["z"])),
                     rotation=Quat.from_axis_angle(Vec3(0.0, 1.0, 0.0), spin),
                 )
 
@@ -246,8 +258,10 @@ class ShooterGame:
         }
 
     def status(self) -> str:
+        # Short HP/ammo line only: "|" has no bitmap glyph (renders as "?"),
+        # and WAVE/SCORE/KILLS already live in draw_shooter top-center.
         s = self.sim
-        return f"HP {s.hp} | {s.weapon} {s.ammo.get(s.weapon,0)}/{s.reserve.get(s.weapon,0)} | WAVE {s.wave} | SCORE {s.score} | KILLS {s.kills}"
+        return f"HP {s.hp} - {s.weapon} {s.ammo.get(s.weapon,0)}/{s.reserve.get(s.weapon,0)}"
 
     def draw_ui(self, canvas, state) -> None:
         draw_shooter(canvas, state, self.sim)

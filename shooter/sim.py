@@ -342,10 +342,13 @@ class Sim:
         if not frozen:
             self._step_enemies(dt, events)
 
-        # surge pickup via trigger volume
+        # surge pickup via trigger volume (spot from levels.json DATA)
         if self.pickup_active and self.alive:
             box = AABB(self.player_pos, Vec3(0.35, 0.9, 0.35))
-            vol = TriggerVolume("surge", AABB(Vec3(0.0, 0.5, -6.0), Vec3(1.0, 0.5, 1.0)))
+            spot = self.levels.get("pickup", {"x": 0.0, "y": 0.5, "z": -6.0})
+            vol = TriggerVolume("surge", AABB(
+                Vec3(float(spot["x"]), float(spot["y"]), float(spot["z"])),
+                Vec3(1.0, 0.5, 1.0)))
             trig = self.tracker.update(box, [vol])
             if "surge" in trig.entered:
                 self.pickup_active = False

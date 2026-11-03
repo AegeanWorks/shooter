@@ -124,6 +124,37 @@ def test_kite_bot_clears_wave_one():
     assert again["hash"] == result["hash"]
 
 
+def test_kite_holds_distance_600():
+    import math
+
+    from shooter.bot import kite_step
+
+    g = ShooterGame()
+    g.build_scene()
+    min_dist = 99.0
+    for _ in range(600):
+        g.update(1.0 / 60.0, kite_step(g.sim))
+        px, pz = g.sim.player_pos.x, g.sim.player_pos.z
+        for e in g.sim.enemies:
+            if e.alive:
+                min_dist = min(min_dist, math.hypot(e.pos.x - px, e.pos.z - pz))
+    final = g.snapshot()
+    assert final["player"]["alive"] is True, final
+    assert min_dist > 1.5, min_dist
+
+
+def test_strafe_baseline_locked():
+    from shooter.bot import strafe_fire
+
+    g = ShooterGame()
+    result = run_simulation(g, frames=300, actions=strafe_fire(300))
+    final = result["final"]
+    assert final["player"]["alive"] is True, final
+    assert final["shots"] == 30, final
+    assert final["hits"] == 2, final
+    assert final["player"]["hp"] == 84, final
+
+
 def test_player_can_die():
     from keystone.math3d import Vec3
 

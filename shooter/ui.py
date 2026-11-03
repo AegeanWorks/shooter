@@ -21,15 +21,32 @@ def draw_shooter(canvas, hud, sim) -> None:
     canvas.rect(cx - 1, cy + gap, 2, 8, col)
     canvas.rect(cx - 1, cy - 1, 2, 2, col)
 
-    # bottom-left status panel
-    canvas.rect(12, h - 64, 300, 52, panel_c)
+    # engine help lives bottom-left (overlay.py); keep the game panel above it.
+    # overlay scale/help math mirrored here so panels never overlap.
+    scale = 2 if (w >= 620 and h >= 360) else 1
+    if w >= 620:
+        help_h = (9 * scale) * 2 + 6 * scale
+        panel_y = h - 64 - (help_h + (12 if scale == 2 else 6))
+    else:
+        panel_y = h - 64
+    # bottom-left status panel (HP/ammo only; wave/score stays top-center,
+    # engine status() carries the same short HP/ammo line — no duplication)
+    canvas.rect(12, panel_y, 300, 52, panel_c)
     hp = int(getattr(sim, "hp", 100))
     hp_col = danger if hp <= 30 else white
-    canvas.text(20, h - 56, f"HP {hp}", hp_col, 2)
-    canvas.text(20, h - 36, f"{str(getattr(sim, 'weapon', 'pulse')).upper()} "
+    canvas.text(20, panel_y + 8, f"HP {hp}", hp_col, 2)
+    canvas.text(20, panel_y + 28, f"{str(getattr(sim, 'weapon', 'pulse')).upper()} "
                f"{int(sim.ammo.get(sim.weapon, 0))}/{int(sim.reserve.get(sim.weapon, 0))}", dim, 2)
-    # top-center wave/score
+    # low-hp edge warning (translucent, presentation-only)
+    if hp <= 30 and bool(getattr(sim, "alive", True)):
+        edge = (1.0, 0.15, 0.15, 0.28)
+        canvas.rect(0, 0, w, 6, edge)
+        canvas.rect(0, h - 6, w, 6, edge)
+        canvas.rect(0, 0, 6, h, edge)
+        canvas.rect(w - 6, 0, 6, h, edge)
+    # top-center wave/score (single source; engine status() omits these)
     canvas.text(cx - 90, 34, f"WAVE {int(getattr(sim, 'wave', 1))}  "
                f"SCORE {int(getattr(sim, 'score', 0))}", white, 2)
     if not bool(getattr(sim, "alive", True)):
+        canvas.rect(0, 0, w, h, (0.45, 0.02, 0.02, 0.28))
         canvas.text(cx - 70, cy - 60, "YOU DIED", danger, 4)
