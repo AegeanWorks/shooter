@@ -478,7 +478,11 @@ class Sim:
     def _switch(self, wid: str, events: list[str]) -> None:
         if wid not in self.weapons or wid == self.weapon:
             return
-        if wid == "surge" and self.surge_t <= 0.0 and self.pickup_taken and self.ammo.get("surge", 0) <= 0:
+        # Surge is selectable only while its timer runs. With no timer the gun
+        # is a dead end (0 ammo, no reload path, no input path back out fails
+        # loudly) — whether never picked up or already forfeited. The live
+        # pickup sets the timer directly; nothing else may arm surge.
+        if wid == "surge" and self.surge_t <= 0.0:
             return
         # Surge lock (DATA-owned): switching away forfeits remaining surge
         # time, turning the pickup detour into a real routing decision.
