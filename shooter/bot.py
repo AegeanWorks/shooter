@@ -101,3 +101,30 @@ def strafe_fire(n: int = 300) -> list[ActionState]:
         right = 1.0 if (i // 30) % 2 == 0 else -1.0
         script.append(ActionState(forward=0.6, right=right, held=frozenset({"fire"})))
     return script
+
+
+def overdrive_step(sim) -> ActionState:
+    """Measurement policy: kite + voluntary overdrive when it is a real choice.
+
+    Presses overdrive only when preview passes (pulse reserve covers cost)
+    and streak >= 3, so uptake is measured, never forced. Otherwise identical
+    to kite_step.
+    """
+    base = kite_step(sim)
+    try:
+        prev = sim.overdrive_preview()
+    except AttributeError:
+        return base
+    if bool(prev.get("ok", False)) and int(getattr(sim, "streak", 0)) >= 3:
+        pressed = set(getattr(base, "pressed", frozenset())) | {"overdrive"}
+        return ActionState(
+            forward=float(getattr(base, "forward", 0.0)),
+            right=float(getattr(base, "right", 0.0)),
+            up=float(getattr(base, "up", 0.0)),
+            look_yaw=float(getattr(base, "look_yaw", 0.0)),
+            look_pitch=float(getattr(base, "look_pitch", 0.0)),
+            pressed=frozenset(pressed),
+            held=getattr(base, "held", frozenset()),
+            mouse_clicked=bool(getattr(base, "mouse_clicked", False)),
+        )
+    return base

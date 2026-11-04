@@ -57,8 +57,13 @@ class Sim:
         self.enemy_defs = {e["id"]: e for e in _load("enemies.json")["enemies"]}
         self.levels = _load("levels.json")
         self.juice = _load("juice.json")
+        try:
+            self.engagement = _load("engagement.json")
+        except (OSError, ValueError):
+            self.engagement = {}
         self.seed = int(seed)
         self.rng = random.Random(self.seed)
+        self.reward_rng = random.Random((int(seed) ^ 0x9E3779B9) & 0xFFFFFFFF)
         self.controller = CharacterController(gravity=24.0)
         self.grid = SpatialGrid(cell_size=4.0)
         self.particles = ParticleSystem(
@@ -82,7 +87,50 @@ class Sim:
     def reseed(self, seed: int) -> None:
         self.seed = int(seed)
         self.rng = random.Random(self.seed)
+        self.reward_rng = random.Random((int(seed) ^ 0x9E3779B9) & 0xFFFFFFFF)
         self.reset()
+
+    # ---- engagement tuning (DATA-owned, validated defaults) --------------
+    def _eng(self) -> dict:
+        e = getattr(self, "engagement", {}) or {}
+        reward = dict(e.get("reward", {}))
+        streak = dict(e.get("streak", {}))
+        near = dict(e.get("near_miss", {}))
+        od = dict(e.get("overdrive", {}))
+        return {
+            "standard_p": float(reward.get("standard_p", 0.85)),
+            "critical_p": float(reward.get("critical_p", 0.12)),
+            "critical_mult": float(reward.get("critical_mult", 2.0)),
+            "cache_p": float(reward.get("cache_p", 0.03)),
+            "cache_reserve": int(reward.get("cache_reserve", 12)),
+            "cache_expire_s": float(reward.get("cache_expire_s", 8.0)),
+            "streak_per": float(streak.get("per_kill", 0.10)),
+            "streak_cap": float(streak.get("cap", 0.50)),
+            "near_frac": float(near.get("hp_frac", 0.10)),
+            "near_bonus": int(near.get("bonus_reserve", 6)),
+            "near_once": bool(near.get("once_per_wave", True)),
+            "od_cost": int(od.get("cost_reserve", 30)),
+            "od_dur": float(od.get("duration_s", 8.0)),
+            "od_mult": float(od.get("mult", 2.0)),
+            "surge_lock": bool(e.get("surge_lock", True)),
+        }
+
+    def overdrive_preview(self) -> dict:
+        cfg = self._eng()
+        if not bool(self.alive):
+            return {"ok": False, "reason": "dead", "cost": cfg["od_cost"],
+                    "duration_s": cfg["od_dur"], "mult": cfg["od_mult"]}
+        if float(getattr(self, "overdrive_t", 0.0)) > 0.0:
+            return {"ok": False, "reason": "already_on", "cost": cfg["od_cost"],
+                    "duration_s": cfg["od_dur"], "mult": cfg["od_mult"]}
+        if float(getattr(self, "surge_t", 0.0)) > 0.0:
+            return {"ok": False, "reason": "surge_active", "cost": cfg["od_cost"],
+                    "duration_s": cfg["od_dur"], "mult": cfg["od_mult"]}
+        if int(self.reserve.get("pulse", 0)) < int(cfg["od_cost"]):
+            return {"ok": False, "reason": "insufficient_ammo", "cost": cfg["od_cost"],
+                    "duration_s": cfg["od_dur"], "mult": cfg["od_mult"]}
+        return {"ok": True, "reason": "", "cost": cfg["od_cost"],
+                "duration_s": cfg["od_dur"], "mult": cfg["od_mult"]}
 
     # ---- setup ---------------------------------------------------------
     def _colliders(self) -> list[AABB]:
@@ -106,6 +154,7 @@ class Sim:
 
     def reset(self) -> None:
         self.rng = random.Random(self.seed)
+        self.reward_rng = random.Random((int(self.seed) ^ 0x9E3779B9) & 0xFFFFFFFF)
         spawn = self.levels["player"]["spawn"]
         # rest on floor with skin gap so the floor never blocks horizontal moves
         self.player_pos = Vec3(float(spawn[0]), float(spawn[1]) + 0.0002, float(spawn[2]))
@@ -124,6 +173,15 @@ class Sim:
         self.cooldown = 0.0
         self.reload_t = 0.0
         self.surge_t = 0.0
+        self.overdrive_t = 0.0
+        self.streak = 0
+        self.best_streak = 0
+        # reward telemetry: stated-vs-coded honesty counters
+        self.rewards = {"standard": 0, "critical": 0, "cache": 0}
+        self.near_miss = 0
+        self.clutch = 0
+        self._near_bonus_wave = 0
+        self.caches: list[dict] = []
         self.kick = 0.0
         self.hitstop = 0
         self.hitmark_t = 0.0
@@ -224,7 +282,7 @@ class Sim:
             self.yaw = (self.yaw + look_yaw) % math.tau
             self.pitch = max(-PITCH_LIMIT, min(PITCH_LIMIT, self.pitch + look_pitch))
 
-        # weapon switch
+        # weapon switch + voluntary overdrive (push-your-luck, ammo stake only)
         if self.alive and not frozen:
             if "slot1" in pressed:
                 self._switch("pulse", events)
@@ -232,6 +290,8 @@ class Sim:
                 self._switch("scatter", events)
             elif "slot3" in pressed:
                 self._switch("lance", events)
+            if "overdrive" in pressed:
+                self._try_overdrive(events)
 
         # movement with accel/friction smoothing, then engine collision
         if self.alive and not frozen:
@@ -290,6 +350,10 @@ class Sim:
             self.surge_t = max(0.0, self.surge_t - dt)
             if self.surge_t <= 0.0 and self.weapon == "surge":
                 self._switch("pulse", events)
+        if float(getattr(self, "overdrive_t", 0.0)) > 0.0:
+            self.overdrive_t = max(0.0, float(self.overdrive_t) - dt)
+            if self.overdrive_t <= 0.0:
+                events.append("overdrive_end")
         self.kick *= max(0.0, 1.0 - 8.0 * dt)
         if abs(self.kick) < 1e-6:
             self.kick = 0.0
@@ -333,6 +397,11 @@ class Sim:
                 events.append("spawn")
             if not self.spawn_queue and alive_count == 0 and self.alive:
                 # wave clear bonus then next wave
+                # CLUTCH is flavor-only (almost-lost, not Clark near-miss): never
+                # counted in near_miss, never pays a bonus.
+                if int(self.hp) <= 30:
+                    self.clutch += 1
+                    events.append("clutch")
                 self.score += 250
                 self.wave += 1
                 events.append("wave")
@@ -359,16 +428,65 @@ class Sim:
                 self.reload_t = 0.0
                 events.append("pickup")
 
+        # ammo-cache drops (intermittent timing): expire + pickup (pulse reserve)
+        if self.caches:
+            cfg_c = self._eng()
+            keep: list[dict] = []
+            box = AABB(self.player_pos, Vec3(0.35, 0.9, 0.35))
+            for c in self.caches:
+                c["ttl"] = float(c.get("ttl", 0.0)) - dt
+                if float(c["ttl"]) <= 0.0:
+                    continue
+                vol = TriggerVolume("cache", AABB(
+                    Vec3(float(c["x"]), float(c["y"]), float(c["z"])),
+                    Vec3(1.0, 0.5, 1.0)))
+                trig = self.tracker.update(box, [vol])
+                if "cache" in trig.entered and self.alive:
+                    self.reserve["pulse"] = int(self.reserve.get("pulse", 0)) + int(cfg_c["cache_reserve"])
+                    events.append("cache")
+                    continue
+                keep.append(c)
+            self.caches = keep
+
         self.particles.step(dt)
         self.time += dt
         self.tick += 1
         return events
+
+    def _on_hurt(self, events: list[str]) -> None:
+        # Any detected damage breaks streak + overdrive (cf. break_combo):
+        # the multiplier is a stake, never a ratchet.
+        if int(getattr(self, "streak", 0)) > 0:
+            events.append("streak_break")
+        self.streak = 0
+        if float(getattr(self, "overdrive_t", 0.0)) > 0.0:
+            self.overdrive_t = 0.0
+            events.append("overdrive_break")
+
+    def _try_overdrive(self, events: list[str]) -> None:
+        prev = self.overdrive_preview()
+        if not bool(prev.get("ok", False)):
+            events.append(f"overdrive_denied:{prev.get('reason', 'unknown')}")
+            return
+        self.reserve["pulse"] = int(self.reserve.get("pulse", 0)) - int(prev["cost"])
+        self.overdrive_t = float(prev["duration_s"])
+        events.append("overdrive")
 
     def _switch(self, wid: str, events: list[str]) -> None:
         if wid not in self.weapons or wid == self.weapon:
             return
         if wid == "surge" and self.surge_t <= 0.0 and self.pickup_taken and self.ammo.get("surge", 0) <= 0:
             return
+        # Surge lock (DATA-owned): switching away forfeits remaining surge
+        # time, turning the pickup detour into a real routing decision.
+        if str(getattr(self, "weapon", "")) == "surge" and wid != "surge":
+            try:
+                lock = bool(self._eng()["surge_lock"])
+            except (TypeError, ValueError, AttributeError):
+                lock = True
+            if lock and float(getattr(self, "surge_t", 0.0)) > 0.0:
+                self.surge_t = 0.0
+                events.append("surge_forfeit")
         self.weapon = wid
         self.reload_t = 0.0
         self.cooldown = max(self.cooldown, 0.08)
@@ -380,23 +498,23 @@ class Sim:
         self.shots += 1
         events.append("shoot")
         origin = self.eye()
-        base = self.forward()
+        fwd = self.forward()
         rx, _, rz = math.cos(self.yaw), 0.0, math.sin(self.yaw)
         spread = math.radians(float(w.get("spread_hip_deg", 1.0)))
         pellets = int(w.get("pellets", 1))
         pierce = int(w.get("pierce", 1))
         wall_dists: list[float] = []
         for b in self.colliders:
-            d = ray_aabb(Ray(origin, base), b)
+            d = ray_aabb(Ray(origin, fwd), b)
             if d is not None:
                 wall_dists.append(d)
         wall_best = min(wall_dists) if wall_dists else float("inf")
         for _ in range(pellets):
             ox = self.rng.uniform(-spread, spread) if spread > 0 else 0.0
             oy = self.rng.uniform(-spread, spread) if spread > 0 else 0.0
-            direction = Vec3(base.x + rx * ox, base.y + oy, base.z + rz * ox).normalized()
+            direction = Vec3(fwd.x + rx * ox, fwd.y + oy, fwd.z + rz * ox).normalized()
             if direction.length_squared() < 1e-9:
-                direction = base
+                direction = fwd
             # gather enemy hits sorted
             scored: list[tuple[float, _Enemy]] = []
             for e in self.enemies:
@@ -428,11 +546,54 @@ class Sim:
                 events.append("hit")
                 impacted = True
                 end_dist = min(end_dist, d)
+                # Honest near-miss (Clark almost-won only): survivor at <=hp_frac.
+                # Flavor + one capped comeback per wave; never farmed.
+                if e.hp > 0 and e.alive:
+                    try:
+                        cfg_n = self._eng()
+                    except (TypeError, ValueError, AttributeError):
+                        cfg_n = {"near_frac": 0.10, "near_bonus": 6, "near_once": True}
+                    max_hp = int(self.enemy_defs.get(e.etype, {}).get("hp", max(1, e.max_hp)))
+                    if int(e.hp) <= max(1, int(round(max_hp * float(cfg_n["near_frac"])))):
+                        self.near_miss += 1
+                        events.append("near_miss")
+                        if bool(cfg_n["near_once"]) and int(getattr(self, "_near_bonus_wave", 0)) != int(self.wave):
+                            self._near_bonus_wave = int(self.wave)
+                            self.reserve["pulse"] = int(self.reserve.get("pulse", 0)) + int(cfg_n["near_bonus"])
+                            events.append("near_miss_bonus")
                 if e.hp <= 0 and e.alive:
                     e.alive = False
                     self.kills += 1
                     edef = self.enemy_defs[e.etype]
-                    self.score += int(edef["score"])
+                    # Variable-magnitude + intermittent cache on a separate
+                    # reward stream (combat/spawn RNG untouched).
+                    cfg_r = self._eng()
+                    roll = float(self.reward_rng.random())
+                    bounty = int(edef["score"])
+                    kind = "standard"
+                    if roll < float(cfg_r["cache_p"]):
+                        kind = "cache"
+                    elif roll < float(cfg_r["cache_p"]) + float(cfg_r["critical_p"]):
+                        kind = "critical"
+                        bounty = int(round(bounty * float(cfg_r["critical_mult"])))
+                    self.rewards[kind] = int(self.rewards.get(kind, 0)) + 1
+                    if kind == "critical":
+                        events.append("critical")
+                    # streak multiplier is a stake: per-kill, capped, breaks on hurt
+                    self.streak = int(getattr(self, "streak", 0)) + 1
+                    self.best_streak = max(int(getattr(self, "best_streak", 0)), int(self.streak))
+                    rate = min(float(cfg_r["streak_cap"]), float(cfg_r["streak_per"]) * int(self.streak))
+                    total = bounty + int(bounty * rate)
+                    if float(getattr(self, "overdrive_t", 0.0)) > 0.0:
+                        total = int(round(total * float(cfg_r["od_mult"])))
+                        events.append("overdrive_hit")
+                    self.score += int(total)
+                    if kind == "cache":
+                        self.caches.append({
+                            "x": float(e.pos.x), "y": 0.5, "z": float(e.pos.z),
+                            "ttl": float(cfg_r["cache_expire_s"]),
+                        })
+                        events.append("cache_drop")
                     self.particles.burst("kill", int(self.juice.get("kill_burst", 20)), e.pos)
                     self.hitstop = int(self.juice.get("hitstop_ticks", 2))
                     events.append("kill")
@@ -440,9 +601,9 @@ class Sim:
                 # wall / ground puff at wall distance when within range
                 if wall_best <= float(w["range"]):
                     hit_pos = Vec3(
-                        origin.x + base.x * wall_best,
-                        origin.y + base.y * wall_best,
-                        origin.z + base.z * wall_best,
+                        origin.x + fwd.x * wall_best,
+                        origin.y + fwd.y * wall_best,
+                        origin.z + fwd.z * wall_best,
                     )
                     self.particles.burst("impact", 4, hit_pos)
             self.tracers.append(
@@ -456,7 +617,7 @@ class Sim:
             )
             self.tracers = self.tracers[:16]
         self.flash_t = float(self.juice.get("flash_life_s", 0.06))
-        self.flash_pos = Vec3(origin.x + base.x * 0.7, origin.y + base.y * 0.7 - 0.1, origin.z + base.z * 0.7)
+        self.flash_pos = Vec3(origin.x + fwd.x * 0.7, origin.y + fwd.y * 0.7 - 0.1, origin.z + fwd.z * 0.7)
         self.kick += math.radians(float(w.get("kick_deg", 0.6)))
         self.kick = min(self.kick, math.radians(4.0))
 
@@ -483,6 +644,7 @@ class Sim:
                     self.hp -= int(edef["dmg"])
                     e.attack_cd = 1.0
                     events.append("hurt")
+                    self._on_hurt(events)
                     if self.hp <= 0:
                         self.hp = 0
                         self.alive = False
@@ -501,6 +663,7 @@ class Sim:
                     self.hp -= int(edef["dmg"])
                     e.attack_cd = 2.0
                     events.append("hurt")
+                    self._on_hurt(events)
                     if self.hp <= 0:
                         self.hp = 0
                         self.alive = False
@@ -535,6 +698,7 @@ class Sim:
                         self.hp -= int(edef["dmg"])
                         e.attack_cd = 1.5
                         events.append("hurt")
+                        self._on_hurt(events)
                         if self.hp <= 0:
                             self.hp = 0
                             self.alive = False
@@ -571,6 +735,13 @@ class Sim:
             "ammo": {k: int(v) for k, v in self.ammo.items()},
             "reserve": {k: int(v) for k, v in self.reserve.items()},
             "reloading": round(float(self.reload_t), 4),
+            "streak": int(getattr(self, "streak", 0)),
+            "best_streak": int(getattr(self, "best_streak", 0)),
+            "overdrive_t": round(float(getattr(self, "overdrive_t", 0.0)), 4),
+            "rewards": {k: int(v) for k, v in dict(getattr(self, "rewards", {})).items()},
+            "near_miss": int(getattr(self, "near_miss", 0)),
+            "clutch": int(getattr(self, "clutch", 0)),
+            "caches": int(len(getattr(self, "caches", []))),
             "player": {
                 "x": r(self.player_pos.x),
                 "y": r(self.player_pos.y),

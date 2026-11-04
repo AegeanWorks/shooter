@@ -44,9 +44,19 @@ def draw_shooter(canvas, hud, sim) -> None:
         canvas.rect(0, h - 6, w, 6, edge)
         canvas.rect(0, 0, 6, h, edge)
         canvas.rect(w - 6, 0, 6, h, edge)
-    # top-center wave/score (single source; engine status() omits these)
+    # top-center wave/score/streak (single source; engine status() omits these)
     canvas.text(cx - 90, 34, f"WAVE {int(getattr(sim, 'wave', 1))}  "
                f"SCORE {int(getattr(sim, 'score', 0))}", white, 2)
+    streak = int(getattr(sim, "streak", 0))
+    od_t = float(getattr(sim, "overdrive_t", 0.0))
+    if streak > 0:
+        canvas.text(cx - 90, 52, f"STREAK x{streak}", accent, 2)
+    if od_t > 0.0:
+        canvas.text(cx - 90, 68, f"OVERDRIVE {od_t:.1f}s x2", accent, 2)
+    elif str(getattr(sim, "weapon", "")) == "surge" and float(getattr(sim, "surge_t", 0.0)) > 0.0:
+        canvas.text(cx - 90, 68, "SURGE LOCKED - switching drops it", dim, 2)
+    if int(getattr(sim, "near_miss", 0)) > 0:
+        canvas.text(cx - 90, 84, f"NEAR-MISS {int(getattr(sim, 'near_miss', 0))}", dim, 2)
     if not bool(getattr(sim, "alive", True)):
         canvas.rect(0, 0, w, h, (0.45, 0.02, 0.02, 0.28))
         canvas.text(cx - 70, cy - 60, "YOU DIED", danger, 4)

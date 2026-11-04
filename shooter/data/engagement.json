@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "reward": {
+    "standard_p": 0.85,
+    "critical_p": 0.12,
+    "critical_mult": 2.0,
+    "cache_p": 0.03,
+    "cache_reserve": 12,
+    "cache_expire_s": 8.0
+  },
+  "streak": {
+    "per_kill": 0.10,
+    "cap": 0.50,
+    "break_on": "hurt"
+  },
+  "near_miss": {
+    "hp_frac": 0.10,
+    "bonus_reserve": 6,
+    "once_per_wave": true
+  },
+  "overdrive": {
+    "cost_reserve": 30,
+    "duration_s": 8.0,
+    "mult": 2.0
+  },
+  "surge_lock": true,
+  "notes": "Engagement tuning DATA (Stage 2 revision). All odds/thresholds tunable here; sim.py reads with validated defaults. Reward rolls use a separate reward_rng stream so combat/spawn determinism is untouched. No HP costs, no currency, no fake near-misses."
+}

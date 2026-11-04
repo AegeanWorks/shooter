@@ -268,8 +268,8 @@ class ShooterGame:
     def actions(self) -> dict:
         return {
             "axes": ["forward", "right", "up", "look_yaw", "look_pitch"],
-            "buttons": ["fire", "reload", "slot1", "slot2", "slot3", "jump", "sprint", "quit"],
-            "notes": "fire=mouse_clicked or pressed.fire; hold fire key for auto",
+            "buttons": ["fire", "reload", "slot1", "slot2", "slot3", "overdrive", "jump", "sprint", "quit"],
+            "notes": "fire=mouse_clicked or pressed.fire; hold fire key for auto; overdrive=voluntary 8s x2 (pulse-reserve cost, breaks on hurt)",
         }
 
     def status(self) -> str:
