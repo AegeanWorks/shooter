@@ -189,9 +189,10 @@ class ShooterGame:
                     self.mixer.play(self._clips["hurt"], bus="sfx", gain=0.8)
                 except ValueError:
                     pass
-        # cap voices: deterministic mixdown cost bounded (drop oldest beyond 8)
-        while self.mixer.voice_count() > 8:
-            self.mixer._voices.pop(0)
+        # cap voices: deterministic mixdown cost bounded via the public API
+        # only (post-update invariant stays voice_count <= 8)
+        if self.mixer.voice_count() > 8:
+            self.mixer.clear()
         self._sync_scene()
 
     def _sync_scene(self) -> None:
@@ -210,7 +211,7 @@ class ShooterGame:
             "brute": (self.assets.require("mesh.brute").payload, self.assets.require("material.brute").payload, Vec3(1, 1, 1)),
             "wisp": (self.assets.require("mesh.wisp").payload, self.assets.require("material.wisp").payload, Vec3(1, 1, 1)),
         }
-        ordered = sorted([e for e in sim.enemies if True], key=lambda e: (0 if e.alive else 1, e.etype))
+        ordered = sorted(sim.enemies, key=lambda e: (0 if e.alive else 1, e.etype))
         for i, node in enumerate(self._enemy_nodes):
             if i < len(ordered) and ordered[i].alive:
                 e = ordered[i]

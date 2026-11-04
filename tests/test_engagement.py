@@ -51,13 +51,15 @@ def test_engagement_data_valid():
 def test_reward_stream_separate_and_reseedable():
     a = Sim(seed=7)
     b = Sim(seed=7)
-    assert a.rng.getstate() != a.reward_rng.getstate() or True  # streams exist
-    # consume combat stream only on a
+    # combat-only consumption leaves the reward stream in lockstep
     a.rng.random()
-    # reward streams still in lockstep until a reward roll happens
     assert a.reward_rng.getstate() == b.reward_rng.getstate()
+    # the reward stream is real state: it advances on rolls, then reseeds clean
+    a.reward_rng.random()
+    assert a.reward_rng.getstate() != b.reward_rng.getstate()
     a.reseed(7)
     assert a.reward_rng.getstate() == b.reward_rng.getstate()
+    assert a.rng.getstate() == b.rng.getstate()
 
 
 def test_stated_odds_match_coded_partition():

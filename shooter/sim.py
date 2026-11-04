@@ -159,7 +159,6 @@ class Sim:
         # rest on floor with skin gap so the floor never blocks horizontal moves
         self.player_pos = Vec3(float(spawn[0]), float(spawn[1]) + 0.0002, float(spawn[2]))
         self.body = CharacterBody(position=self.player_pos)
-        self.yaw = math.pi  # face -Z? spawn z=8 looking to center: yaw=pi faces +Z? corrected below
         self.yaw = 0.0  # forward -Z looks toward origin from z=8
         self.pitch = 0.0
         self.hp = int(self.levels["player"]["hp"])
@@ -429,6 +428,11 @@ class Sim:
                 events.append("pickup")
 
         # ammo-cache drops (intermittent timing): expire + pickup (pulse reserve)
+        # Direct overlap, not the shared TriggerTracker: every overlapping
+        # cache is consumed the same frame. Edge-triggering one shared "cache"
+        # name strands all but one overlapping drop (a second same-frame volume
+        # never "enters" while the first holds the name active, and the shared
+        # tracker never clears until an unrelated surge check runs).
         if self.caches:
             cfg_c = self._eng()
             keep: list[dict] = []
@@ -437,11 +441,10 @@ class Sim:
                 c["ttl"] = float(c.get("ttl", 0.0)) - dt
                 if float(c["ttl"]) <= 0.0:
                     continue
-                vol = TriggerVolume("cache", AABB(
+                vol = AABB(
                     Vec3(float(c["x"]), float(c["y"]), float(c["z"])),
-                    Vec3(1.0, 0.5, 1.0)))
-                trig = self.tracker.update(box, [vol])
-                if "cache" in trig.entered and self.alive:
+                    Vec3(1.0, 0.5, 1.0))
+                if aabb_overlap(box, vol) and self.alive:
                     self.reserve["pulse"] = int(self.reserve.get("pulse", 0)) + int(cfg_c["cache_reserve"])
                     events.append("cache")
                     continue
@@ -486,6 +489,11 @@ class Sim:
                 lock = True
             if lock and float(getattr(self, "surge_t", 0.0)) > 0.0:
                 self.surge_t = 0.0
+                # Relinquish the stranded rounds too: no input path switches
+                # back to surge (slot1-3 only), so leftover ammo would sit
+                # unreachable in the snapshot — and a programmatic re-select
+                # with ammo but no timer would arm a permanent timer-less gun.
+                self.ammo["surge"] = 0
                 events.append("surge_forfeit")
         self.weapon = wid
         self.reload_t = 0.0
