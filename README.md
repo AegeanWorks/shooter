@@ -1,6 +1,22 @@
 # Shooter (Keystone plug-in)
 
+<!-- aegean:media:start -->
+<p align="center"><img src="assets/social-preview.svg" alt="Shooter social preview" width="100%"></p>
+<p align="center"><a href="LICENSE"><img src="https://img.shields.io/badge/license-AGL--1.1-7048e8" alt="License"></a> <a href="https://github.com/AegeanWorks/AIKit"><img src="https://img.shields.io/badge/AIKit-integrated-6f42c1" alt="AIKit Integrated"></a></p>
+<!-- aegean:media:end -->
+
+
 Fast arena shooter on the Keystone engine. Engine owns render/loop/input/serialization (`projects/keystone`); this package owns state/rules/scene and loads via `--game shooter.game:ShooterGame`.
+
+## 30-Second Cold-Start Quick Reference
+
+- **Runtime Prerequisites**: Python 3.10+, Keystone pinned stack (numpy 2.5.3, PyOpenGL 3.1.10, glfw 2.11.0, pytest 9.1.1); OpenGL 3.3-capable GPU for rendered runs (headless sim needs no GPU).
+- **One-click start**: double-click `start-shooter.cmd` (Windows) or run `./start-shooter.sh` (macOS/Linux).
+- **Canonical Regression Shield Gate**:
+  ```powershell
+  # from projects/shooter
+  python -m pytest -q
+  ```
 
 ## One-click start
 
@@ -39,7 +55,7 @@ python -m keystone --game shooter.game:ShooterGame --verify-determinism --frames
 python -m keystone --game shooter.game:ShooterGame --headless --frames 1 --size 960x540 --ui --out shot.png --report shot.json
 ```
 
-## Tree
+## What's Inside
 
 ```text
 projects/shooter/
@@ -68,9 +84,42 @@ projects/shooter/
 ├── play.py                 <- one-click launcher (path setup + game start, passes args through)
 ├── start-shooter.cmd       <- Windows double-click entry point (python/play.py)
 ├── start-shooter.sh        <- macOS/Linux entry point (python3 play.py)
-├── bot_kite600.json            <- scripted kite reference (fair `witnessed_win`)
-├── bot_soak*.json / soak_report*.json <- sustain evidence trail
-├── shot_*.png+json             <- headless capture evidence pairs
+├── .gitignore              <- bytecode, caches, session evidence
+├── README.md               <- this file
+├── LICENSE                 <- Aegean Game License 1.1 (personal play)
+├── LICENSES/               <- machine-readable license texts (REUSE)
+├── COMMERCIAL.md            <- paid use terms (ACL-1.0)
+├── ASSETS.md                <- asset provenance for packs/ports
+├── REUSE.toml               <- copyright + license inventory
+├── assets/                 <- logo.svg + social-preview.svg (brand)
+├── bot_kite600.json        <- scripted kite reference (fair `witnessed_win`)
+├── bot_log.json            <- command-log sample
+├── bot_soak.json           <- sustain soak script
+├── bot_soak2.json          <- second sustain soak script
+├── bot_strafe.json         <- strafe drill script
+├── soak_report.json        <- sustain evidence trail
+├── soak_report2.json       <- second sustain evidence trail
+├── spin_actions.json       <- spin action sample
+├── shot_combat.json        <- headless combat capture report
+├── shot_combat.png         <- headless combat capture image
+├── shot_fix_burst.json     <- burst capture report
+├── shot_fix_burst.png      <- burst capture image
+├── shot_fix_combat.json    <- combat capture report
+├── shot_fix_combat.png    <- combat capture image
+├── shot_fix_death.json     <- death capture report
+├── shot_fix_death.png      <- death capture image
+├── shot_fix_pickup.json    <- pickup capture report
+├── shot_fix_pickup.png     <- pickup capture image
+├── shot_fix_spawn.json     <- spawn capture report
+├── shot_fix_spawn.png      <- spawn capture image
+├── shot_min1.json          <- minute-1 capture report
+├── shot_min1.png           <- minute-1 capture image
+├── shot_soak.json          <- soak capture report
+├── shot_soak.png           <- soak capture image
+├── shot_stage4_min1.json   <- stage-4 capture report
+├── shot_stage4_min1.png    <- stage-4 capture image
+├── shot_stage4_min30proxy.json <- stage-4 proxy capture report
+├── shot_stage4_min30proxy.png  <- stage-4 proxy capture image
 └── .aikit/
     └── decisions.md     <- append-only ADRs
 ```
@@ -85,3 +134,15 @@ overdrive have no live key binding yet (engine-side gap, filed — see
 ADR-016); drive them via headless `ActionState` scripts (`shooter.bot`
 kite/overdrive policies), `--replay` logs, or the `bot_kite600.json`
 reference. Shift sprint, P pause, H hide UI, F1 cursor, Esc quit.
+
+<!-- aegean:brand-assets:start -->
+## 🎨 Brand Assets
+
+> **AI-Generated Brand Artwork.** The banner and logo are **AI-generated brand assets**. They are illustrative and may not literally depict every feature or the full project scope.
+<!-- aegean:brand-assets:end -->
+
+## 📜 License
+
+<!-- aegean:license:start -->
+Free for personal play under the Aegean Game License 1.1 (AGL-1.1); see [LICENSE](LICENSE). It is DRM-free: Licensor ships no DRM and a distributor may not add it. Streaming, modding and free mods are allowed. Commercial use, paid mods and AI training need the Aegean Commercial License 1.0 (ACL-1.0); see [COMMERCIAL.md](COMMERCIAL.md).
+<!-- aegean:license:end -->

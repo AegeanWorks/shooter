@@ -32,6 +32,7 @@ class ShooterGame:
         self.scene = Scene()
         self.assets = AssetRegistry()
         self.mixer = Mixer()
+        self.dropped_sfx = 0
         self._clips: dict = {}
         self._enemy_nodes: list[Node] = []
         self._tracer_nodes: list[Node] = []
@@ -157,6 +158,18 @@ class ShooterGame:
         self._sync_scene()
         return self.scene
 
+    def _play_clip(self, clip, gain: float) -> None:
+        """Play one SFX clip, counting (never hiding) a mixer refusal.
+
+        Audio must never crash gameplay, but a refusal used to vanish into
+        `except ValueError: pass`. Counting drops keeps the failure visible
+        to soak reports without changing the deterministic sim.
+        """
+        try:
+            self.mixer.play(clip, bus="sfx", gain=gain)
+        except ValueError:
+            self.dropped_sfx += 1
+
     def update(self, dt: float, actions) -> None:
         if not self._built:
             self.build_scene()
@@ -165,30 +178,15 @@ class ShooterGame:
             if e == "shoot":
                 w = self.sim.weapon
                 clip = self._clips.get({"pulse": "shoot", "scatter": "scatter", "lance": "lance", "surge": "shoot"}.get(w, "shoot"), self._clips["shoot"])
-                try:
-                    self.mixer.play(clip, bus="sfx", gain=0.7)
-                except ValueError:
-                    pass
+                self._play_clip(clip, 0.7)
             elif e == "hit":
-                try:
-                    self.mixer.play(self._clips["hit"], bus="sfx", gain=0.5)
-                except ValueError:
-                    pass
+                self._play_clip(self._clips["hit"], 0.5)
             elif e == "kill":
-                try:
-                    self.mixer.play(self._clips["kill"], bus="sfx", gain=0.8)
-                except ValueError:
-                    pass
+                self._play_clip(self._clips["kill"], 0.8)
             elif e in ("pickup", "wave"):
-                try:
-                    self.mixer.play(self._clips["pickup" if e == "pickup" else "wave"], bus="sfx", gain=0.7)
-                except ValueError:
-                    pass
+                self._play_clip(self._clips["pickup" if e == "pickup" else "wave"], 0.7)
             elif e == "hurt":
-                try:
-                    self.mixer.play(self._clips["hurt"], bus="sfx", gain=0.8)
-                except ValueError:
-                    pass
+                self._play_clip(self._clips["hurt"], 0.8)
         # cap voices: deterministic mixdown cost bounded via the public API
         # only (post-update invariant stays voice_count <= 8)
         if self.mixer.voice_count() > 8:

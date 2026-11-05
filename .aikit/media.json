@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "name": "shooter",
+  "repo": "Shooter",
+  "has_ui": false,
+  "ui_kind": "cli",
+  "palette": [
+    "#120f07",
+    "#2b3012",
+    "#f5d466",
+    "#99f58e"
+  ],
+  "motif": "orbit",
+  "layout": "editorial",
+  "assets": {
+    "logo": {
+      "path": "assets/logo.svg",
+      "status": "approved",
+      "commit": "",
+      "generated_at": "2026-11-06T00:37:09",
+      "review": {
+        "status": "approved",
+        "reviewer": "agent:main",
+        "method": "structural",
+        "notes": "Orbit mark, correct SH monogram plus AEGEANWORKS wordmark, coherent dark/gold palette.",
+        "score": null,
+        "reviewed_at": "2026-11-06T00:37:55"
+      }
+    },
+    "social_preview": {
+      "path": "assets/social-preview.svg",
+      "status": "approved",
+      "commit": "",
+      "generated_at": "2026-11-06T00:37:09",
+      "review": {
+        "status": "approved",
+        "reviewer": "agent:main",
+        "method": "structural",
+        "notes": "Project name, GAME kind label, repo slug and README tagline all match; no defects.",
+        "score": null,
+        "reviewed_at": "2026-11-06T00:37:55"
+      }
+    }
+  },
+  "screenshots": []
+}

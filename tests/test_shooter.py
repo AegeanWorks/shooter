@@ -245,3 +245,16 @@ def test_playtest_fair_with_kite_reference():
     assert transcript["outcome"] == "win", transcript["outcome"]
     again = run_bot(ShooterGame, ScriptedPolicy(reference), frames=600, seed=1)
     assert again["hash"] == transcript["hash"]
+
+
+def test_mixer_refusal_is_counted_not_hidden():
+    g = ShooterGame()
+    g.build_scene()
+
+    def refuse(*args, **kwargs):
+        raise ValueError("bus gone")
+
+    g.mixer.play = refuse
+    assert g.dropped_sfx == 0
+    g._play_clip(g._clips["shoot"], 0.7)
+    assert g.dropped_sfx == 1
