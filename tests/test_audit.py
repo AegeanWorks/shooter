@@ -113,3 +113,56 @@ def test_live_input_limits_documented():
     live_actions = set(InputMap().list_actions())
     shooter_only = {"fire", "reload", "slot1", "slot2", "slot3", "overdrive", "jump"}
     assert shooter_only & live_actions == set(), shooter_only & live_actions
+
+
+def test_dropped_sfx_resets_on_rebuild_and_surfaces_in_snapshot():
+    g = ShooterGame()
+    g.build_scene()
+
+    def refuse(*args, **kwargs):
+        raise ValueError("bus gone")
+
+    g.mixer.play = refuse
+    g._play_clip(g._clips["shoot"], 0.7)
+    assert g.dropped_sfx == 1
+    assert g.snapshot()["dropped_sfx"] == 1
+    g.build_scene()  # rebuild clears the mixer and the drop counter
+    assert g.dropped_sfx == 0
+    assert g.snapshot()["dropped_sfx"] == 0
+
+
+def test_surge_pickup_breaks_overdrive():
+    from keystone.math3d import Vec3
+
+    s = Sim(seed=1)
+    s.pickup_active = True
+    s.overdrive_t = 5.0
+    s.streak = 3
+    s.player_pos = Vec3(0.0, 0.9, -6.0)
+    s.body = s.body.__class__(position=Vec3(0.0, 0.9, -6.0),
+                              half_extents=s.body.half_extents,
+                              velocity=Vec3(), on_ground=s.body.on_ground)
+    s.spawn_queue = ["mite"]
+    s.spawn_t = 999.0
+    s.enemies = []
+    events = s.step(1.0 / 60.0, ActionState())
+    assert "pickup" in events
+    assert "overdrive_break" in events
+    assert float(s.overdrive_t) == 0.0
+    assert s.weapon == "surge"
+
+
+def test_kite_dodges_when_completely_dry():
+    from shooter.bot import kite_step
+
+    s = Sim(seed=1)
+    s.spawn_queue = ["mite"]
+    s.spawn_t = 999.0
+    s.enemies = []
+    s.pickup_active = False
+    for wid in list(s.ammo):
+        s.ammo[wid] = 0
+        s.reserve[wid] = 0
+    action = kite_step(s)
+    # Must keep moving (survival strafe), never park with zero input.
+    assert abs(float(action.forward)) + abs(float(action.right)) > 0.0

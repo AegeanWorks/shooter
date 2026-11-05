@@ -121,7 +121,11 @@ projects/shooter/
 ├── shot_stage4_min30proxy.json <- stage-4 proxy capture report
 ├── shot_stage4_min30proxy.png  <- stage-4 proxy capture image
 └── .aikit/
-    └── decisions.md     <- append-only ADRs
+    ├── decisions.md     <- append-only ADRs
+    ├── guidelines.md    <- agent working agreement
+    ├── project.json     <- project metadata
+    ├── media.json       <- brand/media manifest
+    └── task_ledger.json <- disruption-recovery ledger
 ```
 
 ## Controls (live Engine bindings)

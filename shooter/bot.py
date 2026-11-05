@@ -62,7 +62,11 @@ def kite_step(sim) -> ActionState:
         for wid, slot in (("scatter", "slot2"), ("lance", "slot3")):
             if _ammo_total(sim, wid) > 0:
                 return ActionState(pressed=frozenset({slot}))
-        return ActionState()
+        # Dry on every gun: keep dodging (orbit strafe) instead of standing
+        # still. No kills means no cache income, so this is survival-only —
+        # but a moving target outlives a parked one until a wave clears.
+        orbit = 1.0 if (sim.tick // 90) % 2 == 0 else -1.0
+        return ActionState(forward=-0.5, right=0.7 * orbit)
     living = [e for e in sim.enemies if e.alive]
     if not living:
         return ActionState()

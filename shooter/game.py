@@ -61,6 +61,7 @@ class ShooterGame:
         self.scene.bloom = BloomSettings(enabled=bool(_ren.get("bloom", True)))
         self.assets = AssetRegistry()
         self.mixer = Mixer()
+        self.dropped_sfx = 0
         self.particles = self.sim.particles
 
         self.assets.register("mesh.floor", plane(40.0))
@@ -262,7 +263,9 @@ class ShooterGame:
                 )
 
     def snapshot(self) -> dict:
-        return self.sim.snapshot()
+        snap = self.sim.snapshot()
+        snap["dropped_sfx"] = int(self.dropped_sfx)
+        return snap
 
     def actions(self) -> dict:
         return {

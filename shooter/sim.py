@@ -373,9 +373,9 @@ class Sim:
                 elif int(self.reserve.get(self.weapon, 0)) > 0 and float(w.get("reload_s", 0.0)) > 0.0:
                     self.reload_t = float(w["reload_s"])
                     events.append("reload")
-                elif "reload" in pressed and int(self.reserve.get(self.weapon, 0)) > 0:
-                    self.reload_t = float(w.get("reload_s", 1.0))
-                    events.append("reload")
+                # NOTE: explicit `reload`-key path lives in the standalone
+                # block below (covers surge reload_s==0 modded tables too);
+                # no duplicate branch here.
         if "reload" in pressed and self.reload_t <= 0.0 and self.alive:
             w = self.weapons[self.weapon]
             if int(self.ammo.get(self.weapon, 0)) < int(w["mag"]) and int(
@@ -421,6 +421,12 @@ class Sim:
             if "surge" in trig.entered:
                 self.pickup_active = False
                 self.pickup_taken = True
+                # Overdrive and surge never stack (preview blocks overdrive
+                # while surge runs): picking up surge breaks an active
+                # overdrive timer, same as hurt does.
+                if float(getattr(self, "overdrive_t", 0.0)) > 0.0:
+                    self.overdrive_t = 0.0
+                    events.append("overdrive_break")
                 self.weapon = "surge"
                 self.ammo["surge"] = int(self.weapons["surge"]["mag"])
                 self.surge_t = float(self.weapons["surge"].get("duration_s", 10.0))
