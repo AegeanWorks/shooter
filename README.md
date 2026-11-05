@@ -2,6 +2,23 @@
 
 Fast arena shooter on the Keystone engine. Engine owns render/loop/input/serialization (`projects/keystone`); this package owns state/rules/scene and loads via `--game shooter.game:ShooterGame`.
 
+## One-click start
+
+Double-click `start-shooter.cmd` (Windows) or run `./start-shooter.sh`
+(macOS/Linux) — no terminal setup, no `PYTHONPATH`. It launches the live
+windowed game via `play.py`:
+
+```powershell
+# from anywhere; extra args pass straight to Keystone
+python projects/shooter/play.py
+python projects/shooter/play.py --simulate --frames 600
+python projects/shooter/play.py --describe
+```
+
+`play.py` resolves its own folder, adds `projects/shooter` +
+`projects/keystone` to `sys.path`, checks Python 3.10+ and the sibling
+Keystone checkout, then runs `keystone --game shooter.game:ShooterGame`.
+
 ## Prerequisites
 
 - Python 3.10+, Keystone pinned stack (numpy 2.5.3, PyOpenGL 3.1.10, glfw 2.11.0, pytest 9.1.1)
@@ -48,6 +65,9 @@ projects/shooter/
 │   ├── record_bot.py  <- emit CommandLog for --replay
 │   ├── soak.py        <- full-length sustain soak + timing/budget report
 │   └── capture.py     <- seeded screenshot routes (spawn/combat/burst/pickup/death)
+├── play.py                 <- one-click launcher (path setup + game start, passes args through)
+├── start-shooter.cmd       <- Windows double-click entry point (python/play.py)
+├── start-shooter.sh        <- macOS/Linux entry point (python3 play.py)
 ├── bot_kite600.json            <- scripted kite reference (fair `witnessed_win`)
 ├── bot_soak*.json / soak_report*.json <- sustain evidence trail
 ├── shot_*.png+json             <- headless capture evidence pairs
